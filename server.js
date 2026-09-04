@@ -1,7 +1,6 @@
 import express from "express";
 import multer from "multer";
 import { GoogleGenAI } from "@google/genai";
-import OpenAI from "openai";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs/promises";
@@ -62,7 +61,7 @@ function parseJsonResponse(text) {
   }
 }
 
-function formatApiError(err, provider) {
+function formatApiError(err) {
   const msg = String(err?.message || err || "").trim();
   
   try {
@@ -70,7 +69,7 @@ function formatApiError(err, provider) {
     if (jsonStart >= 0) {
       const parsed = JSON.parse(msg.slice(jsonStart));
       if (parsed.error?.message) {
-        return formatApiError(new Error(parsed.error.message), provider);
+        return formatApiError(new Error(parsed.error.message));
       }
     }
   } catch {}
@@ -78,15 +77,11 @@ function formatApiError(err, provider) {
   if (msg.includes("503") || msg.includes("UNAVAILABLE") || msg.includes("high demand")) {
     return "Server Gemini sedang sangat sibuk / High Demand (503). Silakan coba lagi beberapa saat lagi.";
   }
-  if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("no credits remaining") || msg.toLowerCase().includes("quota")) {
-    if (provider === "Gemini") {
-      return "Kuota / Limit gratis Gemini API Key telah habis (429).";
-    } else {
-      return "Kredit/Saldo OpenAI Anda telah habis (429). Silakan isi ulang billing di dashboard OpenAI.";
-    }
+  if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED") || msg.toLowerCase().includes("quota")) {
+    return "Kuota / Limit gratis Gemini API Key telah habis (429). Silakan tunggu beberapa saat atau gunakan API Key lain.";
   }
-  if (msg.includes("401") || msg.includes("403") || msg.toLowerCase().includes("api key") || msg.includes("Incorrect API key")) {
-    return `API Key ${provider} tidak valid atau tidak memiliki akses.`;
+  if (msg.includes("401") || msg.includes("403") || msg.toLowerCase().includes("api key")) {
+    return "Gemini API Key tidak valid atau tidak memiliki akses.";
   }
   return msg.length > 180 ? `${msg.slice(0, 180)}...` : msg;
 }
@@ -281,49 +276,15 @@ async function generateWithGemini(apiKey, inputMime, inputBuffer, prompt) {
   return parseJsonResponse(response.text);
 }
 
-async function generateWithOpenAI(apiKey, inputMime, inputBuffer, prompt) {
-  const openai = new OpenAI({ apiKey });
-  const content = [];
-  content.push({ type: "text", text: prompt });
-
-  if (inputMime.startsWith("image/")) {
-    content.push({
-      type: "image_url",
-      image_url: {
-        url: `data:${inputMime};base64,${inputBuffer.toString("base64")}`
-      }
-    });
-  } else if (inputMime.startsWith("video/")) {
-    throw new Error("OpenAI Vision tidak mendukung file Video MP4/MOV langsung. Gunakan Gemini API Key untuk file Video.");
-  } else {
-    throw new Error(`Tipe mime ${inputMime} tidak didukung oleh OpenAI.`);
-  }
-
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      { role: "system", content: "You are a professional microstock metadata generator. Return strictly valid raw JSON." },
-      { role: "user", content }
-    ],
-    response_format: { type: "json_object" },
-    temperature: 0.7,
-  });
-
-  const text = response.choices[0]?.message?.content || "";
-  return parseJsonResponse(text);
-}
-
 app.get("/api/status", (req, res) => res.json({ status: "online", message: "Vector Metadata Pro server is working!" }));
 
 app.post("/api/generate", upload.single("image"), async (req, res) => {
   let vectorPreview = null;
   try {
     const geminiKey = String(req.body.apiKey || req.body.geminiApiKey || "").trim();
-    const openaiKey = String(req.body.openaiApiKey || "").trim();
-    const provider = String(req.body.provider || "auto").toLowerCase();
 
-    if (!geminiKey && !openaiKey) {
-      return res.status(400).json({ error: "Gemini API Key atau OpenAI API Key belum dimasukkan.", code: "MISSING_API_KEY" });
+    if (!geminiKey) {
+      return res.status(400).json({ error: "Gemini API Key belum dimasukkan.", code: "MISSING_API_KEY" });
     }
     if (!req.file) return res.status(400).json({ error: "Silakan upload file terlebih dahulu.", code: "MISSING_FILE" });
 
@@ -357,67 +318,9 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
 
     const prompt = constructPrompt(mediaType, ext, avoidTitles, avoidDescriptions);
 
-    let rawMetadata = null;
-    let usedEngine = "";
-    let geminiError = null;
-
-    const shouldTryGemini = (provider === "gemini" || provider === "auto") && geminiKey;
-    const shouldTryOpenAI = (provider === "openai" || provider === "auto") && openaiKey;
-
-    if (provider === "openai" && !openaiKey) {
-      return res.status(400).json({ error: "OpenAI API Key belum dimasukkan.", code: "MISSING_OPENAI_KEY" });
-    }
-
-    if (shouldTryGemini) {
-      try {
-        console.log(`Executing Gemini API: gemini-3.7-flash | ${req.file.originalname}`);
-        rawMetadata = await generateWithGemini(geminiKey, inputMime, inputBuffer, prompt);
-        usedEngine = "Gemini AI (3.7-Flash)";
-      } catch (err) {
-        geminiError = err;
-        console.warn("Gemini Error:", err.message);
-        if (provider === "gemini" || !openaiKey) {
-          return res.status(500).json({
-            error: "Gagal memproses dengan Gemini AI",
-            details: { gemini: formatApiError(err, "Gemini") },
-            code: "GEMINI_FAILED"
-          });
-        }
-        console.log("Gemini limit/error. Auto-switching fallback to OpenAI...");
-      }
-    }
-
-    if (!rawMetadata && shouldTryOpenAI) {
-      try {
-        console.log(`Executing OpenAI API: gpt-4o-mini | ${req.file.originalname}`);
-        rawMetadata = await generateWithOpenAI(openaiKey, inputMime, inputBuffer, prompt);
-        usedEngine = geminiError ? "OpenAI GPT-4o-mini (Fallback dari Gemini)" : "OpenAI GPT-4o-mini";
-      } catch (err) {
-        console.error("OpenAI Error:", err.message);
-        if (geminiError) {
-          return res.status(500).json({
-            error: "Kedua Provider AI Gagal Dipproses",
-            details: {
-              gemini: formatApiError(geminiError, "Gemini"),
-              openai: formatApiError(err, "OpenAI")
-            },
-            code: "DUAL_ENGINE_FAILED"
-          });
-        }
-        return res.status(500).json({
-          error: "Gagal memproses dengan OpenAI",
-          details: { openai: formatApiError(err, "OpenAI") },
-          code: "OPENAI_FAILED"
-        });
-      }
-    }
-
-    if (!rawMetadata) {
-      return res.status(400).json({
-        error: "Tidak ada API Key yang valid.",
-        details: { note: "Masukkan Gemini Key atau OpenAI Key yang memiliki kuota aktif." }
-      });
-    }
+    console.log(`Executing Gemini API: gemini-3.7-flash | ${req.file.originalname}`);
+    const rawMetadata = await generateWithGemini(geminiKey, inputMime, inputBuffer, prompt);
+    const usedEngine = "Gemini AI (3.7-Flash)";
 
     const metadata = normalizeMetadata(rawMetadata);
     metadata.quality_signals = {
@@ -432,9 +335,9 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
   } catch (error) {
     console.error("SERVER ERROR:", error);
     res.status(500).json({
-      error: "Terjadi Kesalahan Server",
-      details: { general: formatApiError(error, "Server") },
-      code: "SERVER_ERROR"
+      error: "Gagal Memproses Metadata dengan Gemini AI",
+      details: { gemini: formatApiError(error) },
+      code: "GEMINI_FAILED"
     });
   } finally {
     if (vectorPreview?.cleanup) await vectorPreview.cleanup().catch(() => {});

@@ -23,8 +23,7 @@ function displayErrorCard(title, details){
   let itemsHtml = "";
   if(typeof details === "object" && details !== null){
     for(const [key, val] of Object.entries(details)){
-      const providerLabel = key === "gemini" ? "🔹 Gemini AI" : key === "openai" ? "🟢 OpenAI" : key.toUpperCase();
-      itemsHtml += `<div class="error-card-item"><strong>${providerLabel}:</strong> ${escapeHtml(val)}</div>`;
+      itemsHtml += `<div class="error-card-item"><strong>Gemini AI:</strong> ${escapeHtml(val)}</div>`;
     }
   } else {
     itemsHtml = `<div class="error-card-item">${escapeHtml(details || title)}</div>`;
@@ -50,28 +49,9 @@ function getGeminiApiKey(){
   return localStorage.getItem("vmp_gemini_key") || "";
 }
 
-function getOpenAiApiKey(){
-  const val = String($("openaiKeyInput")?.value||"").trim();
-  if(val){
-    localStorage.setItem("vmp_openai_key", val);
-    return val;
-  }
-  return localStorage.getItem("vmp_openai_key") || "";
-}
-
-function getProvider(){
-  return $("providerSelect")?.value || localStorage.getItem("vmp_provider") || "auto";
-}
-
 function loadSavedApiKeys(){
   const savedGemini = localStorage.getItem("vmp_gemini_key");
   if(savedGemini && $("apiKeyInput")) $("apiKeyInput").value = savedGemini;
-  
-  const savedOpenAi = localStorage.getItem("vmp_openai_key");
-  if(savedOpenAi && $("openaiKeyInput")) $("openaiKeyInput").value = savedOpenAi;
-
-  const savedProvider = localStorage.getItem("vmp_provider");
-  if(savedProvider && $("providerSelect")) $("providerSelect").value = savedProvider;
 }
 
 function ext(file){return String(file?.name||"").toLowerCase().split(".").pop();}
@@ -98,7 +78,7 @@ async function checkServer(){
     $("statusMessage").textContent=d.message||"Server online";
   }catch{
     $("statusButton").textContent="● OFFLINE";
-    $("statusMessage").textContent="Jalankan backend dengan npm start";
+    $("statusMessage").textContent="Server offline";
   }
 }
 
@@ -173,12 +153,6 @@ function setupSingleUpload(){
   
   $("apiKeyInput")?.addEventListener("input",()=>{
     localStorage.setItem("vmp_gemini_key", $("apiKeyInput").value.trim());
-  });
-  $("openaiKeyInput")?.addEventListener("input",()=>{
-    localStorage.setItem("vmp_openai_key", $("openaiKeyInput").value.trim());
-  });
-  $("providerSelect")?.addEventListener("change",()=>{
-    localStorage.setItem("vmp_provider", $("providerSelect").value);
   });
 
   document.querySelectorAll("#mediaChoice .media-option").forEach(b=>b.addEventListener("click",()=>{state.mediaType=b.dataset.media;syncMediaButtons();}));
@@ -260,7 +234,7 @@ function renderScoreCard(m){
 
 function displayMetadata(m){
   $("metadataResult").hidden=false;
-  if($("engineBadge")) $("engineBadge").textContent = `Engine Used: ${m.engine_used || 'AI Engine'}`;
+  if($("engineBadge")) $("engineBadge").textContent = `Engine Used: ${m.engine_used || 'Gemini AI'}`;
   displayPlatform(m,"shutterstock");
   displayPlatform(m,"adobe");
   renderScoreCard(m);
@@ -292,8 +266,6 @@ function setupResultActions(){
 async function requestMetadata(file, forcedMediaType=null){
   const fd=new FormData();
   fd.append("apiKey", getGeminiApiKey());
-  fd.append("openaiApiKey", getOpenAiApiKey());
-  fd.append("provider", getProvider());
   fd.append("image", file);
   fd.append("mediaType", forcedMediaType||mediaChoiceForFile(file));
   fd.append("avoidTitles", JSON.stringify(state.recentTitles));
@@ -314,9 +286,8 @@ async function requestMetadata(file, forcedMediaType=null){
 
 async function generateSingle(){
   const gKey = getGeminiApiKey();
-  const oKey = getOpenAiApiKey();
-  if(!gKey && !oKey){
-    showStatus("Masukkan Gemini API Key atau OpenAI API Key terlebih dahulu.","error");
+  if(!gKey){
+    showStatus("Masukkan Gemini API Key terlebih dahulu.","error");
     return;
   }
   if(!state.selectedFile){
@@ -327,7 +298,7 @@ async function generateSingle(){
   const b=$("generateButton");
   b.disabled=true;
   b.textContent="ANALYZING...";
-  showStatus("AI sedang membaca media dan menyusun metadata...","loading");
+  showStatus("Gemini AI sedang membaca media dan menyusun metadata...","loading");
   try{
     const d=await requestMetadata(state.selectedFile);
     state.lastMetadata=d;
@@ -336,7 +307,7 @@ async function generateSingle(){
     showStatus(`Metadata berhasil dibuat (${d.engine_used}).`,"success");
   }catch(e){
     showStatus("Proses pembuatan metadata gagal.","error");
-    displayErrorCard(e.message || "Terjadi Kesalahan AI Engine", e.details);
+    displayErrorCard(e.message || "Terjadi Kesalahan Gemini AI Engine", e.details);
   }finally{
     b.disabled=false;
     b.textContent="⚡ GENERATE METADATA";
@@ -346,7 +317,7 @@ async function generateSingle(){
 function csvEscape(v){return `"${String(v??"").replace(/"/g,'""')}"`;}
 
 function downloadCsv(content,name){
-  const blob=new Blob(["\ufeff"+content],{type:"text/csv;charset=utf-8;"});
+  const blob=new Blob(["﻿"+content],{type:"text/csv;charset=utf-8;"});
   const u=URL.createObjectURL(blob),a=document.createElement("a");
   a.href=u;
   a.download=name;
@@ -363,11 +334,13 @@ function platformCsv(fileName,m,p){
   if(p==="adobe"){
     const headers=["Filename","Title","Keywords","Category"];
     const row=[fileName, d.title||"", keywords, d.category||""];
-    return [headers, row].map(r=>r.map(csvEscape).join(",")).join("\n");
+    return [headers, row].map(r=>r.map(csvEscape).join(",")).join("
+");
   } else {
     const headers=["Filename","Description","Keywords","Categories"];
     const row=[fileName, d.description||d.title||"", keywords, d.category||""];
-    return [headers, row].map(r=>r.map(csvEscape).join(",")).join("\n");
+    return [headers, row].map(r=>r.map(csvEscape).join(",")).join("
+");
   }
 }
 
@@ -396,7 +369,8 @@ function exportBatchCombinedCsv(p){
     }
   });
 
-  const csvContent = rows.map(r=>r.map(csvEscape).join(",")).join("\n");
+  const csvContent = rows.map(r=>r.map(csvEscape).join(",")).join("
+");
   downloadCsv(csvContent, `batch-${p==="adobe"?"adobe-stock":"shutterstock"}-all.csv`);
 }
 
@@ -432,7 +406,7 @@ function renderBatchResults(){
     if(!item.success) {
       let errDetail = "";
       if (item.details) {
-        errDetail = Object.entries(item.details).map(([k,v]) => `<div style="font-size:10px; margin-top:2px;"><strong>${k==='gemini'?'🔹 Gemini':'🟢 OpenAI'}:</strong> ${escapeHtml(v)}</div>`).join('');
+        errDetail = Object.entries(item.details).map(([k,v]) => `<div style="font-size:10px; margin-top:2px;"><strong>Gemini AI:</strong> ${escapeHtml(v)}</div>`).join('');
       } else {
         errDetail = escapeHtml(item.error || "Gagal diproses.");
       }
@@ -471,9 +445,8 @@ function setupBatch(){
 
 async function generateBatch(){
   const gKey = getGeminiApiKey();
-  const oKey = getOpenAiApiKey();
-  if(!gKey && !oKey){
-    showStatus("Masukkan Gemini API Key atau OpenAI API Key terlebih dahulu.","error");
+  if(!gKey){
+    showStatus("Masukkan Gemini API Key terlebih dahulu.","error");
     return;
   }
   if(!state.batchFiles.length){
