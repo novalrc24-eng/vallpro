@@ -1,0 +1,16 @@
+{
+  "name": "vector-metadata-pro",
+  "version": "3.4.0",
+  "type": "module",
+  "description": "Microstock Metadata Generator for Adobe Stock & Shutterstock using Gemini & OpenAI API - Railway Docker Ready",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@google/genai": "^1.16.0",
+    "express": "^5.1.0",
+    "multer": "^2.0.2",
+    "openai": "^4.85.4"
+  }
+}

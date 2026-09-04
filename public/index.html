@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Metadata Vall Pro v3</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="app-shell">
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-mark">MV</div>
+    <div>
+      <div class="brand-name">METADATA VALL PRO V3</div>
+      <div class="brand-subtitle">Microstock Metadata Workspace (Gemini & OpenAI Dual Engine)</div>
+    </div>
+  </div>
+  <div class="status-wrap">
+    <button id="statusButton" class="status-button">● CHECKING</button>
+    <span id="statusMessage" class="status-message">Connecting...</span>
+  </div>
+</header>
+
+<div class="workspace">
+<section class="panel">
+<div class="panel-head">
+  <div class="panel-kicker">01 / INPUT</div>
+  <div class="panel-title">Upload Media Single File</div>
+</div>
+<div class="panel-body">
+<div class="upload-grid">
+<div>
+  <div id="dropZone" class="drop-zone">
+    <div class="drop-content">
+      <div class="drop-icon">↑</div>
+      <h3>Drop file disini</h3>
+      <p>PNG, JPG, JPEG, WEBP, MP4, MOV, WEBM, EPS, AI, CDR — sampai 20 MB</p>
+      <button id="chooseButton" class="secondary-button" type="button">Pilih File</button>
+    </div>
+  </div>
+  <input id="fileInput" type="file" accept="image/*,video/mp4,video/quicktime,video/webm,.eps,.ai,.cdr" hidden>
+  <div id="preview" class="file-preview" hidden>
+    <div id="previewMedia" class="preview-media"></div>
+    <div class="file-info">
+      <strong id="fileName"></strong>
+      <span id="fileSize"></span>
+    </div>
+    <button id="removeButton" class="remove-button" type="button">Hapus</button>
+  </div>
+</div>
+
+<div class="config-box">
+  <div>
+    <div class="field-label"><span>Strategi Provider AI</span></div>
+    <select id="providerSelect" class="text-input provider-select">
+      <option value="auto">⚡ Auto Fallback (Gemini → OpenAI jika Limit)</option>
+      <option value="gemini">🔹 Gemini AI Only</option>
+      <option value="openai">🟢 OpenAI (GPT-4o-mini) Only</option>
+    </select>
+  </div>
+
+  <div class="key-grid">
+    <div>
+      <div class="field-label"><span>Gemini API Key</span></div>
+      <input id="apiKeyInput" class="text-input" type="password" autocomplete="off" placeholder="Paste Gemini Key...">
+    </div>
+    <div>
+      <div class="field-label"><span>OpenAI API Key</span></div>
+      <input id="openaiKeyInput" class="text-input" type="password" autocomplete="off" placeholder="Paste OpenAI Key (sk-...)...">
+    </div>
+  </div>
+
+  <div>
+    <div class="field-label"><span>Tipe Destinasi Media Upload</span></div>
+    <div class="media-choice" id="mediaChoice">
+      <button type="button" class="media-option active" data-media="image">IMAGE</button>
+      <button type="button" class="media-option" data-media="video">VIDEO/MOTION</button>
+      <button type="button" class="media-option" data-media="vector">VECTOR</button>
+    </div>
+    <div class="media-help" id="mediaHelp">Metadata akan disusun untuk gambar/foto/illustration.</div>
+  </div>
+
+  <div class="generate-area">
+    <button id="generateButton" class="primary-button" type="button">⚡ GENERATE METADATA</button>
+    <div id="generateStatus" class="generate-status">Siap.</div>
+  </div>
+
+  <div id="errorCardDisplay" class="error-card-box" hidden></div>
+</div>
+</div>
+</div>
+</section>
+
+<section id="metadataResult" hidden>
+<div class="results-header">
+  <div>
+    <div class="panel-kicker">02 / OUTPUT</div>
+    <h2>Metadata Result</h2>
+    <span id="engineBadge" class="engine-badge">Engine: —</span>
+  </div>
+</div>
+<div class="platform-grid">
+  <article class="platform-card">
+    <div class="platform-head">
+      <div class="platform-name">SHUTTERSTOCK</div>
+      <div id="shutterstockScore" class="platform-score">—</div>
+    </div>
+    <div class="platform-body">
+      <div class="metadata-group">
+        <div class="metadata-toolbar"><label>Title</label><button class="copy-button" data-copy="#shutterstockTitle" type="button">COPY</button></div>
+        <textarea id="shutterstockTitle" class="metadata-field single" rows="2"></textarea>
+      </div>
+      <div class="metadata-group">
+        <div class="metadata-toolbar"><label>Description</label><button class="copy-button" data-copy="#shutterstockDescription" type="button">COPY</button></div>
+        <textarea id="shutterstockDescription" class="metadata-field description" rows="3"></textarea>
+      </div>
+      <div class="metadata-group">
+        <div class="metadata-toolbar"><label>Keywords</label><button class="copy-button" data-copy="#shutterstockKeywords" type="button">COPY</button></div>
+        <textarea id="shutterstockKeywords" class="metadata-field keywords" rows="4"></textarea>
+        <div id="shutterstockKeywordCount" class="keyword-count">0 keywords</div>
+      </div>
+      <div class="metadata-group">
+        <div class="metadata-toolbar"><label>Categories</label></div>
+        <input id="shutterstockCategory" class="metadata-field" type="text">
+      </div>
+      <button id="exportShutterstockCsvButton" class="platform-csv-button" type="button">📥 DOWNLOAD CSV SHUTTERSTOCK</button>
+    </div>
+  </article>
+
+  <article class="platform-card">
+    <div class="platform-head">
+      <div class="platform-name">ADOBE STOCK</div>
+      <div id="adobeScore" class="platform-score">—</div>
+    </div>
+    <div class="platform-body">
+      <div class="metadata-group">
+        <div class="metadata-toolbar"><label>Title (Max 70 Chars)</label><button class="copy-button" data-copy="#adobeTitle" type="button">COPY</button></div>
+        <textarea id="adobeTitle" class="metadata-field single" rows="2"></textarea>
+      </div>
+      <div class="metadata-group">
+        <div class="metadata-toolbar"><label>Description</label><button class="copy-button" data-copy="#adobeDescription" type="button">COPY</button></div>
+        <textarea id="adobeDescription" class="metadata-field description" rows="3"></textarea>
+      </div>
+      <div class="metadata-group">
+        <div class="metadata-toolbar"><label>Keywords <small style="color:#2563eb; font-weight:700;">(Top 10 diprioritaskan oleh Adobe SEO)</small></label><button class="copy-button" data-copy="#adobeKeywords" type="button">COPY</button></div>
+        <textarea id="adobeKeywords" class="metadata-field keywords" rows="4"></textarea>
+        <div id="adobeKeywordCount" class="keyword-count">0 keywords</div>
+      </div>
+      <div class="metadata-group">
+        <div class="metadata-toolbar"><label>Category</label></div>
+        <input id="adobeCategory" class="metadata-field" type="text">
+      </div>
+      <button id="exportAdobeCsvButton" class="platform-csv-button" type="button">📥 DOWNLOAD CSV ADOBE STOCK</button>
+    </div>
+  </article>
+</div>
+</section>
+
+<section class="panel">
+<div class="panel-head">
+  <div class="panel-kicker">03 / BATCH PROCESSING</div>
+  <div class="panel-title">Proses Banyak File Sekaligus</div>
+</div>
+<div class="panel-body">
+  <div class="batch-media-row">
+    <div>
+      <div class="field-label"><span>Tipe Destinasi Upload Batch</span></div>
+      <div class="media-choice" id="batchMediaChoice">
+        <button type="button" class="media-option active" data-batch-media="image">IMAGE</button>
+        <button type="button" class="media-option" data-batch-media="video">VIDEO/MOTION</button>
+        <button type="button" class="media-option" data-batch-media="vector">VECTOR</button>
+      </div>
+      <div class="media-help" id="batchMediaHelp">Metadata batch akan disusun untuk gambar, foto, atau illustration.</div>
+    </div>
+  </div>
+  
+  <div class="generate-area batch-controls">
+    <button id="batchButton" class="secondary-button" type="button">📁 Pilih Banyak File</button>
+    <input id="batchInput" type="file" accept="image/*,video/mp4,video/quicktime,video/webm,.eps,.ai,.cdr" multiple hidden>
+    <button id="generateAllButton" class="primary-button" type="button">⚡ GENERATE ALL BATCH</button>
+  </div>
+
+  <div class="batch-export-row" id="batchExportArea" hidden>
+    <div class="batch-export-title">PROSES BATCH SELESAI — EKSPOR MASSAL CSV:</div>
+    <div class="batch-export-actions">
+      <button id="exportAllAdobeButton" class="batch-combined-button adobe" type="button">📦 DOWNLOAD ALL ADOBE STOCK CSV</button>
+      <button id="exportAllShutterstockButton" class="batch-combined-button shutterstock" type="button">📦 DOWNLOAD ALL SHUTTERSTOCK CSV</button>
+    </div>
+  </div>
+
+  <div id="batchList" class="batch-list"></div>
+  <div id="batchResults" class="batch-results"></div>
+</div>
+</section>
+
+</div>
+</main>
+
+<footer class="app-footer">
+  <p>&copy; <span id="year">2026</span> noval.priatna · Vector Metadata Pro v3 · All rights reserved</p>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
